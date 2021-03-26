@@ -1,0 +1,17 @@
+collector_name: demo_collector
+
+# Similar to global.min_interval, but applies to the queries defined by this collector only.
+#min_interval: 0s
+
+metrics:
+  - metric_name: user_info
+    type: gauge
+    help: 'user info'
+    values:
+      - id
+    key_labels:
+      - passWord
+      - userName
+
+    query: |
+      select id,userName,passWord from user

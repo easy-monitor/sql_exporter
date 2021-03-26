@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/free/sql_exporter"
+	"github.com/free/sql_exporter/config"
 	log "github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
@@ -25,49 +26,99 @@ const (
 	acceptEncodingHeader  = "Accept-Encoding"
 )
 
+func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uri := r.URL.Query()
+		dbType := uri.Get("dbType")
+		target := uri.Get("target")
+		module := uri.Get("module")
+		db := uri.Get("db")
+		tmp := uri.Get("collectors")
+		if dbType == "" || target == "" || module == "" || db == "" || tmp == "" {
+			buf := "uri error"
+			w.Write([]byte(buf))
+			return
+		}
+		collectors := strings.Split(tmp, ",")
+		var user string
+		var password string
+		for i := 0; i < len(modules.Module); i++ {
+			if modules.Module[i].Name == module {
+				user = modules.Module[i].User
+				password = modules.Module[i].Password
+				break
+			}
+		}
+		dns := dbType + "://" + user + ":" + password + "@(" + target + ")/" + db
+		//fmt.Println(dns)
+		var newCollectorRefs []string
+		collectorsMap := make(map[string]string)
+		for i := 0; i < len(collectors); i++ {
+			collectorsMap[collectors[i]] = ""
+			newCollectorRefs = append(newCollectorRefs, collectors[i])
+		}
+		var newCollectors []*config.CollectorConfig
+		c.Target.DSN = config.Secret(dns)
+		for i := 0; i < len(c.Collectors); i++ {
+			if _, ok := collectorsMap[c.Collectors[i].Name]; ok {
+				newCollectors = append(newCollectors, c.Collectors[i])
+			}
+		}
+		c.Target.CollectorRefs = newCollectorRefs
+		c.Target.Collector = newCollectors
+		c.Collectors = newCollectors
+		exporter, _ := sql_exporter.NewExporter(c)
+		handler(exporter, w, r)
+	})
+}
+
+func handler(exporter sql_exporter.Exporter, w http.ResponseWriter, req *http.Request) {
+	ctx, cancel := contextFor(req, exporter)
+	defer cancel()
+
+	// Go through prometheus.Gatherers to sanitize and sort metrics.
+	gatherer := prometheus.Gatherers{exporter.WithContext(ctx)}
+	mfs, err := gatherer.Gather()
+	if err != nil {
+		log.Infof("Error gathering metrics: %s", err)
+		if len(mfs) == 0 {
+			http.Error(w, "No metrics gathered, "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	contentType := expfmt.Negotiate(req.Header)
+	buf := getBuf()
+	defer giveBuf(buf)
+	writer, encoding := decorateWriter(req, buf)
+	enc := expfmt.NewEncoder(writer, contentType)
+	var errs prometheus.MultiError
+	for _, mf := range mfs {
+		if err := enc.Encode(mf); err != nil {
+			errs = append(errs, err)
+			log.Infof("Error encoding metric family %q: %s", mf.GetName(), err)
+		}
+	}
+	if closer, ok := writer.(io.Closer); ok {
+		closer.Close()
+	}
+	if errs.MaybeUnwrap() != nil && buf.Len() == 0 {
+		http.Error(w, "No metrics encoded, "+errs.Error(), http.StatusInternalServerError)
+		return
+	}
+	header := w.Header()
+	header.Set(contentTypeHeader, string(contentType))
+	header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
+	if encoding != "" {
+		header.Set(contentEncodingHeader, encoding)
+	}
+	w.Write(buf.Bytes())
+}
+
 // ExporterHandlerFor returns an http.Handler for the provided Exporter.
 func ExporterHandlerFor(exporter sql_exporter.Exporter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancel := contextFor(req, exporter)
-		defer cancel()
-
-		// Go through prometheus.Gatherers to sanitize and sort metrics.
-		gatherer := prometheus.Gatherers{exporter.WithContext(ctx)}
-		mfs, err := gatherer.Gather()
-		if err != nil {
-			log.Infof("Error gathering metrics: %s", err)
-			if len(mfs) == 0 {
-				http.Error(w, "No metrics gathered, "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-
-		contentType := expfmt.Negotiate(req.Header)
-		buf := getBuf()
-		defer giveBuf(buf)
-		writer, encoding := decorateWriter(req, buf)
-		enc := expfmt.NewEncoder(writer, contentType)
-		var errs prometheus.MultiError
-		for _, mf := range mfs {
-			if err := enc.Encode(mf); err != nil {
-				errs = append(errs, err)
-				log.Infof("Error encoding metric family %q: %s", mf.GetName(), err)
-			}
-		}
-		if closer, ok := writer.(io.Closer); ok {
-			closer.Close()
-		}
-		if errs.MaybeUnwrap() != nil && buf.Len() == 0 {
-			http.Error(w, "No metrics encoded, "+errs.Error(), http.StatusInternalServerError)
-			return
-		}
-		header := w.Header()
-		header.Set(contentTypeHeader, string(contentType))
-		header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
-		if encoding != "" {
-			header.Set(contentEncodingHeader, encoding)
-		}
-		w.Write(buf.Bytes())
+		handler(exporter, w, req)
 	})
 }
 

@@ -20,7 +20,6 @@ func Load(configFile string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	c := Config{configFile: configFile}
 	err = yaml.Unmarshal(buf, &c)
 	if err != nil {
@@ -41,11 +40,19 @@ type Config struct {
 	Target         *TargetConfig      `yaml:"target,omitempty"`
 	Jobs           []*JobConfig       `yaml:"jobs,omitempty"`
 	Collectors     []*CollectorConfig `yaml:"collectors,omitempty"`
-
-	configFile string
-
+	configFile     string
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+type Modules struct {
+	Module []*Module `json:"module" yaml:"module"`
+}
+
+type Module struct {
+	Name     string `json:"name" yaml:"name"`
+	User     string `json:"user" yaml:"user"`
+	Password string ` json:"password" yaml:"password"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Config.
@@ -81,7 +88,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if err != nil {
 			return err
 		}
-		c.Target.collectors = cs
+		c.Target.Collector = cs
 	}
 	for _, j := range c.Jobs {
 		cs, err := resolveCollectorRefs(j.CollectorRefs, colls, fmt.Sprintf("job %q", j.Name))
@@ -179,7 +186,7 @@ type TargetConfig struct {
 	DSN           Secret   `yaml:"data_source_name"` // data source name to connect to
 	CollectorRefs []string `yaml:"collectors"`       // names of collectors to execute on the target
 
-	collectors []*CollectorConfig // resolved collector references
+	Collector []*CollectorConfig // resolved collector references
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
@@ -187,7 +194,7 @@ type TargetConfig struct {
 
 // Collectors returns the collectors referenced by the target, resolved.
 func (t *TargetConfig) Collectors() []*CollectorConfig {
-	return t.collectors
+	return t.Collector
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for TargetConfig.

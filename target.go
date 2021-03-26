@@ -34,17 +34,17 @@ type Target interface {
 }
 
 // target implements Target. It wraps a sql.DB, which is initially nil but never changes once instantianted.
-type target struct {
-	name               string
-	dsn                string
-	collectors         []Collector
-	constLabels        prometheus.Labels
-	globalConfig       *config.GlobalConfig
-	upDesc             MetricDesc
-	scrapeDurationDesc MetricDesc
-	logContext         string
+type TargetStruct struct {
+	Name               string
+	Dsn                string
+	Collectors         []Collector
+	ConstLabels        prometheus.Labels
+	GlobalConfig       *config.GlobalConfig
+	UpDesc             MetricDesc
+	ScrapeDurationDesc MetricDesc
+	LogContext         string
 
-	conn *sql.DB
+	Conn *sql.DB
 }
 
 // NewTarget returns a new Target with the given instance name, data source name, collectors and constant labels.
@@ -78,21 +78,21 @@ func NewTarget(
 	upDesc := NewAutomaticMetricDesc(logContext, upMetricName, upMetricHelp, prometheus.GaugeValue, constLabelPairs)
 	scrapeDurationDesc :=
 		NewAutomaticMetricDesc(logContext, scrapeDurationName, scrapeDurationHelp, prometheus.GaugeValue, constLabelPairs)
-	t := target{
-		name:               name,
-		dsn:                dsn,
-		collectors:         collectors,
-		constLabels:        constLabels,
-		globalConfig:       gc,
-		upDesc:             upDesc,
-		scrapeDurationDesc: scrapeDurationDesc,
-		logContext:         logContext,
+	t := TargetStruct{
+		Name:               name,
+		Dsn:                dsn,
+		Collectors:         collectors,
+		ConstLabels:        constLabels,
+		GlobalConfig:       gc,
+		UpDesc:             upDesc,
+		ScrapeDurationDesc: scrapeDurationDesc,
+		LogContext:         logContext,
 	}
 	return &t, nil
 }
 
 // Collect implements Target.
-func (t *target) Collect(ctx context.Context, ch chan<- Metric) {
+func (t *TargetStruct) Collect(ctx context.Context, ch chan<- Metric) {
 	var (
 		scrapeStart = time.Now()
 		targetUp    = true
@@ -100,68 +100,68 @@ func (t *target) Collect(ctx context.Context, ch chan<- Metric) {
 
 	err := t.ping(ctx)
 	if err != nil {
-		ch <- NewInvalidMetric(errors.Wrap(t.logContext, err))
+		ch <- NewInvalidMetric(errors.Wrap(t.LogContext, err))
 		targetUp = false
 	}
-	if t.name != "" {
+	if t.Name != "" {
 		// Export the target's `up` metric as early as we know what it should be.
-		ch <- NewMetric(t.upDesc, boolToFloat64(targetUp))
+		ch <- NewMetric(t.UpDesc, boolToFloat64(targetUp))
 	}
 
 	var wg sync.WaitGroup
 	// Don't bother with the collectors if target is down.
 	if targetUp {
-		wg.Add(len(t.collectors))
-		for _, c := range t.collectors {
+		wg.Add(len(t.Collectors))
+		for _, c := range t.Collectors {
 			// If using a single DB connection, collectors will likely run sequentially anyway. But we might have more.
 			go func(collector Collector) {
 				defer wg.Done()
-				collector.Collect(ctx, t.conn, ch)
+				collector.Collect(ctx, t.Conn, ch)
 			}(c)
 		}
 	}
 	// Wait for all collectors (if any) to complete.
 	wg.Wait()
 
-	if t.name != "" {
+	if t.Name != "" {
 		// And export a `scrape duration` metric once we're done scraping.
-		ch <- NewMetric(t.scrapeDurationDesc, float64(time.Since(scrapeStart))*1e-9)
+		ch <- NewMetric(t.ScrapeDurationDesc, float64(time.Since(scrapeStart))*1e-9)
 	}
 }
 
-func (t *target) ping(ctx context.Context) errors.WithContext {
+func (t *TargetStruct) ping(ctx context.Context) errors.WithContext {
 	// Create the DB handle, if necessary. It won't usually open an actual connection, so we'll need to ping afterwards.
 	// We cannot do this only once at creation time because the sql.Open() documentation says it "may" open an actual
 	// connection, so it "may" actually fail to open a handle to a DB that's initially down.
-	if t.conn == nil {
-		conn, err := OpenConnection(ctx, t.logContext, t.dsn, t.globalConfig.MaxConns, t.globalConfig.MaxIdleConns)
+	if t.Conn == nil {
+		conn, err := OpenConnection(ctx, t.LogContext, t.Dsn, t.GlobalConfig.MaxConns, t.GlobalConfig.MaxIdleConns)
 		if err != nil {
 			if err != ctx.Err() {
-				return errors.Wrap(t.logContext, err)
+				return errors.Wrap(t.LogContext, err)
 			}
 			// if err == ctx.Err() fall through
 		} else {
-			t.conn = conn
+			t.Conn = conn
 		}
 	}
 
 	// If we have a handle and the context is not closed, test whether the database is up.
-	if t.conn != nil && ctx.Err() == nil {
+	if t.Conn != nil && ctx.Err() == nil {
 		var err error
 		// Ping up to max_connections + 1 times as long as the returned error is driver.ErrBadConn, to purge the connection
 		// pool of bad connections. This might happen if the previous scrape timed out and in-flight queries got canceled.
-		for i := 0; i <= t.globalConfig.MaxConns; i++ {
-			if err = PingDB(ctx, t.conn); err != driver.ErrBadConn {
+		for i := 0; i <= t.GlobalConfig.MaxConns; i++ {
+			if err = PingDB(ctx, t.Conn); err != driver.ErrBadConn {
 				break
 			}
 		}
 		if err != nil {
-			return errors.Wrap(t.logContext, err)
+			return errors.Wrap(t.LogContext, err)
 		}
 	}
 
 	if ctx.Err() != nil {
-		return errors.Wrap(t.logContext, ctx.Err())
+		return errors.Wrap(t.LogContext, ctx.Err())
 	}
 	return nil
 }

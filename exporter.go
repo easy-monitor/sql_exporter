@@ -24,20 +24,18 @@ type Exporter interface {
 	Config() *config.Config
 }
 
-type exporter struct {
-	config  *config.Config
-	targets []Target
-
-	ctx context.Context
+type ExporterStruct struct {
+	Conf    *config.Config
+	Targets []Target
+	ctx     context.Context
 }
 
 // NewExporter returns a new Exporter with the provided config.
-func NewExporter(configFile string) (Exporter, error) {
-	c, err := config.Load(configFile)
-	if err != nil {
-		return nil, err
-	}
-
+func NewExporter(c *config.Config) (Exporter, error) {
+	//c, err := config.Load(configFile)
+	//if err != nil {
+	//	return nil, err
+	//}
 	// Override the DSN if requested (and in single target mode).
 	if *dsnOverride != "" {
 		if len(c.Jobs) > 0 {
@@ -65,31 +63,31 @@ func NewExporter(configFile string) (Exporter, error) {
 		}
 	}
 
-	return &exporter{
-		config:  c,
-		targets: targets,
+	return &ExporterStruct{
+		Conf:    c,
+		Targets: targets,
 		ctx:     context.Background(),
 	}, nil
 }
 
-func (e *exporter) WithContext(ctx context.Context) Exporter {
-	return &exporter{
-		config:  e.config,
-		targets: e.targets,
+func (e *ExporterStruct) WithContext(ctx context.Context) Exporter {
+	return &ExporterStruct{
+		Conf:    e.Conf,
+		Targets: e.Targets,
 		ctx:     ctx,
 	}
 }
 
 // Gather implements prometheus.Gatherer.
-func (e *exporter) Gather() ([]*dto.MetricFamily, error) {
+func (e *ExporterStruct) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		metricChan = make(chan Metric, capMetricChan)
 		errs       prometheus.MultiError
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(len(e.targets))
-	for _, t := range e.targets {
+	wg.Add(len(e.Targets))
+	for _, t := range e.Targets {
 		go func(target Target) {
 			defer wg.Done()
 			target.Collect(e.ctx, metricChan)
@@ -145,6 +143,6 @@ func (e *exporter) Gather() ([]*dto.MetricFamily, error) {
 }
 
 // Config implements Exporter.
-func (e *exporter) Config() *config.Config {
-	return e.config
+func (e *ExporterStruct) Config() *config.Config {
+	return e.Conf
 }
