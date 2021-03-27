@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ import (
 
 // Load attempts to parse the given config file and return a Config object.
 func Load(configFile string) (*Config, error) {
+	path, _ := os.Getwd()
+	configFile = filepath.Join(path, "conf/", configFile)
 	log.Infof("Loading configuration from %s", configFile)
 	buf, err := ioutil.ReadFile(configFile)
 	if err != nil {
