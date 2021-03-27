@@ -27,7 +27,7 @@ prepare() {
 
 build() {
     mkdir $startdir/bin
-    go build -o $startdir/bin/${pkgname} $_go_proj_path
+    go build -o $startdir/bin/${pkgname} $_go_proj_path/cmd/sql_exporter
     ls -l $startdir/bin
 }
 
