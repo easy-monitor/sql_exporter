@@ -20,8 +20,6 @@ prepare() {
     ln -snf "$_projdir" "$startdir/gopath/src/$_go_proj_path"
 
     eval "$(GIMME_GO_VERSION=$_goversion gimme)"
-    unset GOPATH
-
     go env
 }
 
