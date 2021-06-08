@@ -1,7 +1,0 @@
-module:
-  - name: mysql
-    user: easyops
-    password: mysqlDevEasyops
-
-
-

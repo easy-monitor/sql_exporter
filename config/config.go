@@ -49,13 +49,14 @@ type Config struct {
 }
 
 type Modules struct {
+	Port   string    `json:"port" yaml:"port"`
 	Module []*Module `json:"module" yaml:"module"`
 }
 
 type Module struct {
 	Name     string `json:"name" yaml:"name"`
 	User     string `json:"user" yaml:"user"`
-	Password string ` json:"password" yaml:"password"`
+	Password string `json:"password" yaml:"password"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Config.

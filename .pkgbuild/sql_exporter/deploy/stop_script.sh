@@ -6,7 +6,7 @@
 
 #############################################################
 # 用户自定义
-process_name="sql_exporter"       # 进程名
+process_name="sqlserver_exporter"       # 进程名
 
 
 # 停止进程

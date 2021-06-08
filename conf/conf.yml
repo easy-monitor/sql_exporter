@@ -1,0 +1,11 @@
+port: 9561
+module:
+  - name: sqlserver1
+    user: sa1
+    password: Easyops12323
+  - name: sqlserver
+    user: sa
+    password: Easyops123
+
+
+

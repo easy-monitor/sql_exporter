@@ -29,17 +29,14 @@ const (
 func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uri := r.URL.Query()
-		dbType := uri.Get("dbType")
 		target := uri.Get("target")
 		module := uri.Get("module")
-		db := uri.Get("db")
-		tmp := uri.Get("collectors")
-		if dbType == "" || target == "" || module == "" || db == "" || tmp == "" {
-			buf := "uri error"
+		if target == "" || module == ""{
+			buf := "args error"
 			w.Write([]byte(buf))
 			return
 		}
-		collectors := strings.Split(tmp, ",")
+		dbType := "sqlserver"
 		var user string
 		var password string
 		for i := 0; i < len(modules.Module); i++ {
@@ -49,24 +46,8 @@ func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 				break
 			}
 		}
-		dns := dbType + "://" + user + ":" + password + "@(" + target + ")/" + db
-		//fmt.Println(dns)
-		var newCollectorRefs []string
-		collectorsMap := make(map[string]string)
-		for i := 0; i < len(collectors); i++ {
-			collectorsMap[collectors[i]] = ""
-			newCollectorRefs = append(newCollectorRefs, collectors[i])
-		}
-		var newCollectors []*config.CollectorConfig
+		dns := dbType + "://" + user + ":" + password + "@" + target
 		c.Target.DSN = config.Secret(dns)
-		for i := 0; i < len(c.Collectors); i++ {
-			if _, ok := collectorsMap[c.Collectors[i].Name]; ok {
-				newCollectors = append(newCollectors, c.Collectors[i])
-			}
-		}
-		c.Target.CollectorRefs = newCollectorRefs
-		c.Target.Collector = newCollectors
-		c.Collectors = newCollectors
 		exporter, _ := sql_exporter.NewExporter(c)
 		handler(exporter, w, r)
 	})

@@ -23,7 +23,7 @@ import (
 
 var (
 	showVersion   = flag.Bool("version", false, "Print version information.")
-	listenAddress = flag.String("web.listen-address", ":9399", "Address to listen on for web interface and telemetry.")
+	listenAddress = flag.String("web.listen-address", ":9561", "Address to listen on for web interface and telemetry.")
 	metricsPath   = flag.String("web.metrics-path", "/metrics", "Path under which to expose metrics.")
 	configFile    = flag.String("config.file", "sql_exporter.yml", "SQL Exporter configuration file name.")
 )
@@ -34,7 +34,7 @@ func init() {
 
 func loadConfig() (*config.Modules, error) {
 	path, _ := os.Getwd()
-	path = filepath.Join(path, "conf/module.yml")
+	path = filepath.Join(path, "conf/conf.yml")
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, errors.New("read conf.yml fail:" + path)
@@ -42,7 +42,7 @@ func loadConfig() (*config.Modules, error) {
 	conf := new(config.Modules)
 	err = yaml.Unmarshal(data, conf)
 	if err != nil {
-		return nil, errors.New("unmarshal conf.yml fail")
+		return nil, errors.New("unmarshal conf.yml fail" + err.Error())
 	}
 	return conf, nil
 }
@@ -80,8 +80,11 @@ func main() {
 
 	module, err := loadConfig()
 	if err != nil {
-		log.Errorf("load module.yml fail: %v", err)
+		log.Errorf("load conf.yml fail: %v", err)
 		return
+	}
+	if module.Port != "" {
+		*listenAddress = ":" + module.Port
 	}
 
 	exporter, err := sql_exporter.NewExporter(conf)

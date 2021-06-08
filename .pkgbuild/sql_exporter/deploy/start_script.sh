@@ -8,8 +8,8 @@
 # 初始化环境
 
 # 用户自定义
-app_folder="sql_exporter"                 # 项目根目录
-process_name="sql_exporter"              # 进程名
+app_folder="sqlserver_exporter"                 # 项目根目录
+process_name="sqlserver_exporter"              # 进程名
 install_base="/data/exporter"              # 安装根目录
 
 #############################################################
@@ -22,7 +22,7 @@ if [[ ! -d ${install_path} ]]; then
 fi
 
 # 启动命令
-start_cmd="./bin/sql_exporter > log/${app_folder}.log 2>&1 &"
+start_cmd="./bin/sqlserver_exporter > log/${app_folder}.log 2>&1 &"
 
 
 # 日志目录
