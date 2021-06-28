@@ -1,18 +1,24 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 
+	_ "net/http/pprof"
+
 	"github.com/free/sql_exporter"
+	"github.com/free/sql_exporter/config"
 	log "github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
-	_ "net/http/pprof"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -24,6 +30,21 @@ var (
 
 func init() {
 	prometheus.MustRegister(version.NewCollector("sql_exporter"))
+}
+
+func loadConfig() (*config.Modules, error) {
+	path, _ := os.Getwd()
+	path = filepath.Join(path, "conf/module.yml")
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, errors.New("read conf.yml fail:" + path)
+	}
+	conf := new(config.Modules)
+	err = yaml.Unmarshal(data, conf)
+	if err != nil {
+		return nil, errors.New("unmarshal conf.yml fail")
+	}
+	return conf, nil
 }
 
 func main() {
@@ -51,7 +72,19 @@ func main() {
 
 	log.Infof("Starting SQL exporter %s %s", version.Info(), version.BuildContext())
 
-	exporter, err := sql_exporter.NewExporter(*configFile)
+	conf, err := config.Load(*configFile)
+	if err != nil {
+		log.Errorf("load sql_exporter.yml fail: %v", err)
+		return
+	}
+
+	module, err := loadConfig()
+	if err != nil {
+		log.Errorf("load module.yml fail: %v", err)
+		return
+	}
+
+	exporter, err := sql_exporter.NewExporter(conf)
 	if err != nil {
 		log.Fatalf("Error creating exporter: %s", err)
 	}
@@ -59,6 +92,9 @@ func main() {
 	// Setup and start webserver.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) { http.Error(w, "OK", http.StatusOK) })
 	http.HandleFunc("/", HomeHandlerFunc(*metricsPath))
+
+	http.Handle("/scrape", ScrapeHandlerFor(conf, module))
+
 	http.HandleFunc("/config", ConfigHandlerFunc(*metricsPath, exporter))
 	http.Handle(*metricsPath, ExporterHandlerFor(exporter))
 	// Expose exporter metrics separately, for debugging purposes.
