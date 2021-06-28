@@ -31,7 +31,7 @@ func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 		uri := r.URL.Query()
 		target := uri.Get("target")
 		module := uri.Get("module")
-		if target == "" || module == ""{
+		if target == "" || module == "" {
 			buf := "args error"
 			w.Write([]byte(buf))
 			return
@@ -50,6 +50,7 @@ func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 		c.Target.DSN = config.Secret(dns)
 		exporter, _ := sql_exporter.NewExporter(c)
 		handler(exporter, w, r)
+		exporter.Close()
 	})
 }
 

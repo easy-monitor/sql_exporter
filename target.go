@@ -31,6 +31,7 @@ const (
 type Target interface {
 	// Collect is the equivalent of prometheus.Collector.Collect(), but takes a context to run in.
 	Collect(ctx context.Context, ch chan<- Metric)
+	Close()
 }
 
 // target implements Target. It wraps a sql.DB, which is initially nil but never changes once instantianted.
@@ -45,6 +46,10 @@ type TargetStruct struct {
 	LogContext         string
 
 	Conn *sql.DB
+}
+
+func (t *TargetStruct) Close() {
+	_ = t.Conn.Close()
 }
 
 // NewTarget returns a new Target with the given instance name, data source name, collectors and constant labels.
