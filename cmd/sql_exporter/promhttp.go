@@ -69,6 +69,7 @@ func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 		c.Collectors = newCollectors
 		exporter, _ := sql_exporter.NewExporter(c)
 		handler(exporter, w, r)
+		exporter.Close()
 	})
 }
 

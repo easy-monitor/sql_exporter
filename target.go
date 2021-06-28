@@ -31,6 +31,7 @@ const (
 type Target interface {
 	// Collect is the equivalent of prometheus.Collector.Collect(), but takes a context to run in.
 	Collect(ctx context.Context, ch chan<- Metric)
+	Close()	error
 }
 
 // target implements Target. It wraps a sql.DB, which is initially nil but never changes once instantianted.
@@ -46,6 +47,15 @@ type TargetStruct struct {
 
 	Conn *sql.DB
 }
+
+func (t *TargetStruct) Close() error {
+	err := t.Conn.Close()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 
 // NewTarget returns a new Target with the given instance name, data source name, collectors and constant labels.
 // An empty target name means the exporter is running in single target mode: no synthetic metrics will be exported.

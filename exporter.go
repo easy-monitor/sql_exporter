@@ -22,12 +22,19 @@ type Exporter interface {
 	WithContext(context.Context) Exporter
 	// Config returns the Exporter's underlying Config object.
 	Config() *config.Config
+	Close()
 }
 
 type ExporterStruct struct {
 	Conf    *config.Config
 	Targets []Target
 	ctx     context.Context
+}
+
+func (e *ExporterStruct) Close()  {
+	for i:=0; i< len(e.Targets); i++ {
+		e.Targets[i].Close()
+	}
 }
 
 // NewExporter returns a new Exporter with the provided config.
