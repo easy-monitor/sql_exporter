@@ -97,6 +97,7 @@ func main() {
 	http.HandleFunc("/", HomeHandlerFunc(*metricsPath))
 
 	http.Handle("/scrape", ScrapeHandlerFor(conf, module))
+	http.Handle("/scrape_metrics", ScrapeMetricsHandlerFor(conf))
 
 	http.HandleFunc("/config", ConfigHandlerFunc(*metricsPath, exporter))
 	http.Handle(*metricsPath, ExporterHandlerFor(exporter))

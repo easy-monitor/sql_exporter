@@ -54,6 +54,24 @@ func ScrapeHandlerFor(c *config.Config, modules *config.Modules) http.Handler {
 	})
 }
 
+func ScrapeMetricsHandlerFor(c *config.Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uri := r.URL.Query()
+		target := uri.Get("target")
+		if target == "" {
+			buf := "args error"
+			w.Write([]byte(buf))
+			return
+		}
+		dbType := "sqlserver"
+		dns := dbType + "://" + target
+		c.Target.DSN = config.Secret(dns)
+		exporter, _ := sql_exporter.NewExporter(c)
+		handler(exporter, w, r)
+		exporter.Close()
+	})
+}
+
 func handler(exporter sql_exporter.Exporter, w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := contextFor(req, exporter)
 	defer cancel()
